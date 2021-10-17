@@ -131,9 +131,9 @@ def region(update: Update, context: CallbackContext) -> int:
     text_file.write(html_(df1.to_html(index=False,justify='center')))
     text_file.close()
    #html to pdf
-    path_wkhtmltopdf = r'C:/Users/CHEPURI VARUN SAI/Desktop/mypr/Lib/site-packages/wkhtmltopdf/bin/wkhtmltopdf.exe'
+    path_wkhtmltopdf = r'C:/Users/*****/Desktop/mypr/Lib/site-packages/wkhtmltopdf/bin/wkhtmltopdf.exe'#enter your package location
     config = pdfkit.configuration(wkhtmltopdf=path_wkhtmltopdf)
-    pdfkit.from_file('index1.html', 'C:/Users/CHEPURI VARUN SAI/Desktop/mypr/college admisson predictor/colleges.pdf', configuration=config)
+    pdfkit.from_file('index1.html', '**********colleges.pdf', configuration=config)#ENTER THE pdf location
     update.message.reply_text('wait sending a file ...!'),
     context.bot.sendDocument(update.effective_chat.id,document=open('./colleges.pdf','rb')),
     
