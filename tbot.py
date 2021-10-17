@@ -1,31 +1,48 @@
-from telegram import Update
+import logging
+from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove,Update
 from telegram.ext import (
-    Updater, 
-    CommandHandler, 
-    CallbackContext, 
-    ConversationHandler,
+    Updater,
+    CommandHandler,
+    MessageHandler,
     Filters,
-    MessageHandler
+    ConversationHandler,
+    CallbackContext,
+    CallbackQueryHandler,
+    CommandHandler
 )
-import pickle, json
-import pandas as pd
 
+# Enable logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+)
+
+logger = logging.getLogger(__name__)
+import pickle, json
+
+import html
+import pdfkit
+#from datetime import datetime
+
+
+import pandas as pd
+# from telegram.files.document import Document
+#loading model
 filename = 'eamcet_model.sav'
 model = pickle.load(open(filename, 'rb'))
 
 df = pd.read_csv('tseamcet.csv')
 
 feature_map = json.loads(open('feature_encoder.json', 'r').read())
-# target_map = json.loads(open('target_encoder.json', 'r').read())
 
 
 
-RANK, GENDER, CASTE, REGION = range(4)
+
+RANK, GENDER, CASTE,REGION= range(4)
+
 
 def start(update: Update, context: CallbackContext) -> int:
     update.message.reply_text(
-        'Hi i am eamcet bot i can predict your college for your details'
-        'enter your rank here'
+        'Hi i am eamcet bot i can predict your college from your details\nenter your rank here'
     )
     
     return RANK
@@ -33,65 +50,112 @@ def start(update: Update, context: CallbackContext) -> int:
 def rank(update: Update, context: CallbackContext) -> int:
     r = int(update.message.text)
     context.user_data['rank'] = r
-    
+    user = update.message.from_user
+    logger.info("User %s : %d rank  .",user.first_name,r)
+    reply_keyboard=[['M','F']]
     update.message.reply_text(
-        'I see! now tell me your gender type M (male) / F (female)'
+        'Are you a Male Or Female?',
+    reply_markup=ReplyKeyboardMarkup(
+        reply_keyboard, one_time_keyboard=True, input_field_placeholder='Male or Female?'
+        ),
     )
+   
     return GENDER
 
 def gender(update: Update, context: CallbackContext) -> int:
     g = update.message.text
     context.user_data['gender'] = g
+    user = update.message.from_user
+    logger.info("User %s : %s gender  .",user.first_name, g)
     
     update.message.reply_text(
-        'Now enter your caste'
-    )
+    'Now enter your caste\n ',
+     reply_markup=ReplyKeyboardRemove(),
+     )
+     
     return CASTE
 
+
 def caste(update: Update, context: CallbackContext) -> int:
-    c = update.message.text
+    c=update.message.text.upper()
     context.user_data['caste'] = c
-    
+    user = update.message.from_user
+    logger.info("User %s : %s caste .",user.first_name, c)
+    reply_keyboard=[['OU','SVU','AU']]
     update.message.reply_text(
-        'Now enter your region'
+        'Are you a Male Or Female?',
+    reply_markup=ReplyKeyboardMarkup(
+        reply_keyboard, one_time_keyboard=True, input_field_placeholder='OU, SVU AU?'
+        ),
     )
     return REGION
 
 def region(update: Update, context: CallbackContext) -> int:
-    r = update.message.text
+    r=update.message.text
     context.user_data['region'] = r
-    
+    user = update.message.from_user
+    logger.info("User %s : %s region .",user.first_name, r)
     testcase = [
         [
          context.user_data['rank'], 
          feature_map['gender'][context.user_data['gender']],
          feature_map['caste'][context.user_data['caste']],
-         feature_map['region'][context.user_data['region']]
+         feature_map['region'][context.user_data['region']],
         ]
-    ]
-    
+     ]
+    #k-nn
     distances, indices = model.kneighbors(testcase)
     
-    result = ""
     
     
-    for college in df.values[indices][0]:
-        result += str(college[6]) + " " + str(college[9]) + "\n"
-        
+
+    indices = list(indices).pop()
+    print(indices)
+    #filename = str(datetime.now())
+
+    df1=df.iloc[indices, [6,9]]
+
+    def html_(txt):
+
+        res = f'''
+            <html>
+                <head><title>colleges</title></title>
+                <body>
+                    {txt}
+                </body>
+            </html>
+        '''
+        return html.unescape(res)
+    #dataframe to html
+    text_file = open("index1.html", "w")
+    text_file.write(html_(df1.to_html(index=False,justify='center')))
+    text_file.close()
+   #html to pdf
+    path_wkhtmltopdf = r'C:/Users/CHEPURI VARUN SAI/Desktop/mypr/Lib/site-packages/wkhtmltopdf/bin/wkhtmltopdf.exe'
+    config = pdfkit.configuration(wkhtmltopdf=path_wkhtmltopdf)
+    pdfkit.from_file('index1.html', 'C:/Users/CHEPURI VARUN SAI/Desktop/mypr/college admisson predictor/colleges.pdf', configuration=config)
+    update.message.reply_text('wait sending a file ...!'),
+    context.bot.sendDocument(update.effective_chat.id,document=open('./colleges.pdf','rb')),
     
-    update.message.reply_text(
-        result
-    )
+    update.message.reply_text('Thank you! for using College Admission Predictor.')
     return ConversationHandler.END
+
+    
+    
+    
+
+
 
 def cancel(update: Update, context: CallbackContext) -> int:
+    user = update.message.from_user
+    logger.info("User %s canceled the conversation.", user.first_name)
     update.message.reply_text(
-        'Bye! I hope we can talk again some day.'
+        'Bye! I hope we can talk again some day.', reply_markup=ReplyKeyboardRemove()
     )
 
     return ConversationHandler.END
 
-updater = Updater('2035395431:AAGrJhHIeSo5m07CdVJw1Q3Iyy2BMjb-Fik')
+updater = Updater('2037942965:AAFoVN74XTF2ohX4REvtgFXPoCxs-KIPxuM')
 dispatcher = updater.dispatcher
 
 conv_handler = ConversationHandler(
@@ -100,11 +164,14 @@ conv_handler = ConversationHandler(
         RANK: [MessageHandler(Filters.text, rank)],
         GENDER: [MessageHandler(Filters.text, gender)],
         CASTE: [MessageHandler(Filters.text, caste)],
-        REGION: [MessageHandler(Filters.text, region)]
+        REGION:[MessageHandler(Filters.text,region),]
+        
     },
+    
     fallbacks=[CommandHandler('cancel', cancel)]
 )
 
 dispatcher.add_handler(conv_handler)
+# updater.dispatcher.add_handler(CallbackQueryHandler(button))
 updater.start_polling()
 updater.idle()
